@@ -73,3 +73,29 @@ def extractSentencePairs(conversations):
                 qa_pairs.append([inputLine, targetLine])
 
     return qa_pairs
+
+
+datafile = os.path.join(corpus, "formatted_movie_lines.txt")
+
+delimiter = '\t'
+delimiter = str(codecs.decode(delimiter, "unicode_escape"))
+
+lines = {}
+conversations = []
+MOVIE_LINES_FIELDS = ["lineID", "characterID", "movieID", "character", "text"]
+MOVIE_CONVERSATIONS_FIELDS = ["character1ID", "character2ID", "movieID", "utteranceIDs"]
+
+print("\nProcessing corpus...")
+lines = loadLines(os.path.join(corpus, "movie_lines.txt"), MOVIE_LINES_FIELDS)
+print("\nLoading conversations...")
+conversations = loadConversations(os.path.join(corpus, "movie_conversations.txt"), lines, MOVIE_CONVERSATIONS_FIELDS)
+
+print("\nWriting newly formatted file...")
+with open(datafile, 'w', encoding='utf-8') as outputFile:
+    writer = csv.writer(outputFile, delimiter=delimiter, lineterminator='\n')
+    for pair in extractSentencePairs(conversations):
+        writer.writerow(pair)
+
+print("\nSample lines from file:")
+printLines(datafile)
+
