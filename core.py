@@ -17,8 +17,7 @@ import codecs
 from io import open
 import itertools
 import math
-
-from Voc import Voc
+import vocabulary
 
 USE_CUDA = torch.cuda.is_available()
 device = torch.device("cuda" if USE_CUDA else "cpu")
@@ -123,7 +122,7 @@ def readVocs(datafile, corpus_name):
     print("\nReading Lines...")
     lines = open(datafile, encoding="utf-8").read().strip().split('\n')
     pairs = [[normalizeString(s) for s in l.split('\t')] for l in lines]
-    voc = Voc(corpus_name)
+    voc = vocabulary.Voc(corpus_name)
     return voc, pairs
 
 
@@ -190,3 +189,69 @@ def trimRareWords(voc, pairs, MIN_COUNT):
 
 
 pairs = trimRareWords(voc, pairs, MIN_COUNT)
+
+def indexesFromSentence(voc, sentence):
+    return [voc.word2index[word] for word in sentence.split(' ')] + [vocabulary.EOS_TOKEN]
+
+
+def zeroPadding(l, fill_value=vocabulary.PAD_TOKEN):
+    return list(itertools.zip_longest(*l, fillvalue=fill_value))
+
+
+def binaryMatrix(l, value=vocabulary.PAD_TOKEN):
+    m = []
+    for i, seq in enumerate(l):
+        m.append([])
+        for token in seq:
+            if token == value:
+                m[i].append(0)
+            else:
+                m[i].append(1)
+
+    return m
+
+
+def inputVar(l, voc):
+    indexes_batch = [indexesFromSentence(voc, sentence) for sentence in l]
+    lengths = torch.tensor([len(indexes) for indexes in indexes_batch])
+    pad_list = zeroPadding(indexes_batch)
+    pad_var = torch.LongTensor(pad_list)
+
+    return pad_var, lengths
+
+
+def outputVar(l, voc):
+    indexes_batch = [indexesFromSentence(voc, sentence) for sentence in l]
+    max_target_len = max([len(indexes) for indexes in indexes_batch])
+    pad_list = zeroPadding(indexes_batch)
+    mask = binaryMatrix(pad_list)
+    mask = torch.ByteTensor(mask)
+    pad_var = torch.LongTensor(pad_list)
+
+    return pad_var, mask, max_target_len
+
+
+def batch2TrainData(voc, pair_batch):
+    pair_batch.sort(key=lambda x: len(x[0].split(" ")), reverse=True)
+    input_batch, output_batch = [], []
+
+    for pair in pair_batch:
+        input_batch.append(pair[0])
+        output_batch.append(pair[1])
+
+    inp, lenghts = inputVar(input_batch, voc)
+    output, mask, max_target_len = outputVar(output_batch, voc)
+
+    return inp, lenghts, output, mask, max_target_len
+
+
+small_batch_size = 5
+batches = batch2TrainData(voc, [random.choice(pairs) for _ in range(small_batch_size)])
+input_variable, lengths, target_variable, mask, max_target_len = batches
+
+print("\n--------------------\n")
+print("input_variable:", input_variable)
+print("lengths:", lengths)
+print("target_variable:", target_variable)
+print("mask:", mask)
+print("max_target_len:", max_target_len)
